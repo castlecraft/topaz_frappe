@@ -5,6 +5,49 @@ app_description = "Topaz Authorization for Frappe"
 app_email = "support@castlecraft.in"
 app_license = "apache-2.0"
 
+# ------------------------------------------------------------------
+# Topaz integration
+# ------------------------------------------------------------------
+
+# Document lifecycle -> sync engine. The wildcard handler inspects the
+# topaz_registry hook to decide whether a DocType participates in Topaz.
+doc_events = {
+	"*": {
+		"after_insert": "topaz_frappe.core.hooks_bridge.handle_doc_event",
+		"on_update": "topaz_frappe.core.hooks_bridge.handle_doc_event",
+		"on_trash": "topaz_frappe.core.hooks_bridge.handle_doc_event",
+	}
+}
+
+# Fine-grained ReBAC enforcement. The "*" wildcard handlers resolve the
+# DocType from context and only act for DocTypes declared in topaz_registry.
+permission_query_conditions = {
+	"*": "topaz_frappe.permissions.hooks.query_conditions_dispatcher",
+}
+
+has_permission = {
+	"*": "topaz_frappe.permissions.hooks.has_permission_dispatcher",
+}
+
+after_install = "topaz_frappe.install.after_install"
+
+# Declare DocType -> Topaz mappings here (this app ships none by default).
+# Consuming apps register their own `topaz_registry` in their own hooks.py;
+# Frappe merges the hook dicts across installed apps. Example:
+#
+# topaz_registry = {
+# 	"ToDo": {
+# 		"object": {"type": "todo", "id_field": "name"},
+# 		"relations": [
+# 			{"kind": "link", "relation": "owner",
+# 			 "target_type": "user", "field": "owner"},
+# 			{"kind": "child", "table": "shares",
+# 			 "subject_field": "user", "static_relation": "viewer"},
+# 		],
+# 	},
+# }
+
+# ------------------------------------------------------------------
 # Apps
 # ------------------
 
@@ -261,4 +304,3 @@ app_license = "apache-2.0"
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
-
