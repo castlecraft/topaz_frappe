@@ -3,7 +3,7 @@
 Topaz Authorization for Frappe.
 
 `topaz_frappe` turns Frappe into the **authoring and management surface for a
-[Topaz](https://www.topaz.sh) (Authzed-compatible) directory**. You model
+[Topaz](https://www.topaz.sh) (AuthZen-compatible) directory**. You model
 objects and relationships as normal Frappe documents; this library syncs them
 into Topaz. Topaz in turn serves [AuthZen](https://openid.net/wg/authzen/)
 decisions to any number of downstream microservices — it is the source of truth
