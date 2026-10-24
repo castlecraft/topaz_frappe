@@ -26,6 +26,7 @@ __all__ = [
 	"ACTION_RELATION_MAP",
 	"custom_has_permission",
 	"resolve_relation",
+	"resolve_relations",
 	"resolve_subject_id",
 ]
 
@@ -71,18 +72,27 @@ def resolve_subject_id(user: str | None = None) -> str | None:
 	return user
 
 
-def resolve_relation(doctype: str, ptype: str) -> str | None:
-	"""Resolve the Topaz relation that grants ``ptype`` for ``doctype``.
+def resolve_relations(doctype: str, ptype: str) -> list[str]:
+	"""Resolve the list of Topaz relations that grant ``ptype`` for ``doctype``.
 
 	Per-DocType ``permission_relations`` overrides win over the global
-	:data:`ACTION_RELATION_MAP`. Returns ``None`` when no relation is configured
+	:data:`ACTION_RELATION_MAP`. Returns an empty list when no relation is configured
 	(the caller should defer to Frappe).
 	"""
 	default = ACTION_RELATION_MAP.get(ptype)
 	mapping = registry.get(doctype)
 	if mapping is None:
-		return default
-	return mapping.get_permission_relation(ptype, default)
+		return [default] if default else []
+	return mapping.get_permission_relations(ptype, default)
+
+
+def resolve_relation(doctype: str, ptype: str) -> str | None:
+	"""Resolve the primary Topaz relation that grants ``ptype`` for ``doctype``.
+
+	Returns the first relation from :func:`resolve_relations`, or ``None``.
+	"""
+	rels = resolve_relations(doctype, ptype)
+	return rels[0] if rels else None
 
 
 def custom_has_permission(
@@ -109,11 +119,12 @@ def custom_has_permission(
 		return True
 
 	# Only enforce for DocTypes that are registered.
-	if registry.get(doctype) is None:
+	mapping = registry.get(doctype)
+	if mapping is None:
 		return None
 
-	relation = resolve_relation(doctype, ptype)
-	if relation is None:
+	relations = resolve_relations(doctype, ptype)
+	if not relations:
 		return None
 
 	subject_id = resolve_subject_id(user)
@@ -126,33 +137,40 @@ def custom_has_permission(
 		return None
 
 	settings = get_topaz_settings()
-	object_type = registry.get(doctype).object_spec.object_type
-
-	# --- request-level cache -----------------------------------------
+	object_type = mapping.object_spec.object_type
+	transport = get_transport()
 	cache = _get_perm_cache()
-	cache_key = (object_type, object_id, relation, settings.subject_type, subject_id)
-	if settings.perm_cache_enabled and cache_key in cache:
-		return cache[cache_key]
 
-	try:
-		result = get_transport().check(
-			object_type=object_type,
-			object_id=object_id,
-			relation=relation,
-			subject_type=settings.subject_type,
-			subject_id=subject_id,
-		)
-	except Exception:
-		frappe.log_error(
-			title="Topaz permission check failed",
-			message=frappe.get_traceback(),
-		)
-		# Fail closed: do not grant access when Topaz is unreachable.
-		result = False
+	# If any relation check evaluates to True, access is granted.
+	for relation in relations:
+		cache_key = (object_type, object_id, relation, settings.subject_type, subject_id)
+		if settings.perm_cache_enabled and cache_key in cache:
+			if cache[cache_key]:
+				return True
+			continue
 
-	if settings.perm_cache_enabled:
-		cache[cache_key] = result
-	return result
+		try:
+			allowed = transport.check(
+				object_type=object_type,
+				object_id=object_id,
+				relation=relation,
+				subject_type=settings.subject_type,
+				subject_id=subject_id,
+			)
+		except Exception:
+			frappe.log_error(
+				title="Topaz permission check failed",
+				message=frappe.get_traceback(),
+			)
+			allowed = False
+
+		if settings.perm_cache_enabled:
+			cache[cache_key] = allowed
+
+		if allowed:
+			return True
+
+	return False
 
 
 def _resolve_object_id(doctype: str, ptype: str, doc) -> str | None:

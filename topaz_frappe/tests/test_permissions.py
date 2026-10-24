@@ -205,6 +205,51 @@ class TopazPermissionTestCase(IntegrationTestCase):
 		cond = query_conditions_dispatcher(user="bob@example.com", doctype="ToDo")
 		self.assertEqual(cond, "1 = 0")
 
+	def test_multiple_relations_permission_and_filter(self):
+		todo1 = self._make_todo()
+		todo2 = self._make_todo()
+
+		# Reconfigure ToDo to accept either viewer OR auditor for read
+		registry.register_dict(
+			"ToDo",
+			{
+				"object": {"type": "todo", "id_field": "name"},
+				"relations": [],
+				"permissions": {
+					"read": ["viewer", "auditor"],
+					"write": "editor",
+				},
+			},
+		)
+
+		# alice is viewer on todo1
+		self.transport.set_relation(TopazRelation("todo", todo1.name, "viewer", "user", "alice@example.com"))
+		# bob is auditor on todo2
+		self.transport.set_relation(TopazRelation("todo", todo2.name, "auditor", "user", "bob@example.com"))
+
+		# Alice can read todo1 (via viewer) but not todo2
+		frappe.set_user("alice@example.com")
+		self.assertTrue(custom_has_permission("ToDo", "read", doc=todo1))
+		self.assertFalse(custom_has_permission("ToDo", "read", doc=todo2))
+
+		# Bob can read todo2 (via auditor) but not todo1
+		frappe.set_user("bob@example.com")
+		self.assertFalse(custom_has_permission("ToDo", "read", doc=todo1))
+		self.assertTrue(custom_has_permission("ToDo", "read", doc=todo2))
+
+		# Query condition unions both relations: charlie has viewer on todo1 and auditor on todo2
+		self.transport.set_relation(
+			TopazRelation("todo", todo1.name, "viewer", "user", "charlie@example.com")
+		)
+		self.transport.set_relation(
+			TopazRelation("todo", todo2.name, "auditor", "user", "charlie@example.com")
+		)
+
+		frappe.set_user("charlie@example.com")
+		cond = get_permission_query_conditions(user="charlie@example.com", doctype="ToDo")
+		self.assertIn(todo1.name, cond)
+		self.assertIn(todo2.name, cond)
+
 
 class TestBuildInCondition(unittest.TestCase):
 	def test_single_chunk(self):

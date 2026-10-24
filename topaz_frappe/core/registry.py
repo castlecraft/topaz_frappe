@@ -195,12 +195,27 @@ def _build_mapping_from_dict(config: dict[str, Any]) -> DocTypeMapping:
 
 	relations = [_build_relation(spec) for spec in config.get("relations", [])]
 
-	# Per-DocType permission overrides: ptype -> Topaz relation.
+	# Per-DocType permission overrides: ptype -> Topaz relation(s).
 	# Accept either key for readability in hooks.
+	# Values may be a string (e.g. "viewer"), a list/tuple (e.g. ["can_access", "is_member"]),
+	# or a pipe-separated string (e.g. "can_access | is_member").
 	perm_conf = config.get("permissions") or config.get("permission_relations") or {}
 	if not isinstance(perm_conf, dict):
 		raise TypeError(f"'permissions' in registry mapping must be a dict, got {type(perm_conf)!r}")
-	permission_relations = {str(k): str(v) for k, v in perm_conf.items()}
+
+	permission_relations: dict[str, list[str]] = {}
+	for k, v in perm_conf.items():
+		key = str(k)
+		if isinstance(v, (list, tuple, set)):
+			permission_relations[key] = [str(item).strip() for item in v if str(item).strip()]
+		elif isinstance(v, str):
+			# Support pipe-separated syntax: "can_access | is_member"
+			if "|" in v:
+				permission_relations[key] = [part.strip() for part in v.split("|") if part.strip()]
+			else:
+				permission_relations[key] = [v.strip()]
+		else:
+			permission_relations[key] = [str(v).strip()]
 
 	return DocTypeMapping(
 		object_spec=object_spec,

@@ -29,6 +29,7 @@ from topaz_frappe.core.registry import registry
 from topaz_frappe.permissions.checker import (
 	_get_perm_cache,
 	resolve_relation,
+	resolve_relations,
 	resolve_subject_id,
 )
 from topaz_frappe.transport.factory import get_transport
@@ -81,45 +82,49 @@ def get_permission_query_conditions(user: str | None = None, doctype: str | None
 
 	object_type = mapping.object_spec.object_type
 
-	# The relation that grants *list visibility* is whatever the DocType maps
+	# The relations that grant *list visibility* are whatever the DocType maps
 	# ``read`` to (default ``viewer``). This lets a schema expose list access
-	# via e.g. ``can_access_committee`` without touching this module.
-	list_relation = resolve_relation(doctype, "read")
-	if list_relation is None:
+	# via e.g. ``can_access_committee``, ``["can_access", "is_member"]`` without touching this module.
+	list_relations = resolve_relations(doctype, "read")
+	if not list_relations:
 		# No relation defined for reads -> nothing is listable via Topaz.
 		return "1 = 0"
 
-	# Request-level cache of allowed-id sets.
 	cache = _get_perm_cache()
-	cache_key = ("__allowed__", object_type, list_relation, settings.subject_type, subject_id)
-	if cache_key in cache:
-		allowed = cache[cache_key]
-	else:
-		try:
-			allowed = get_transport().search_resources(
-				object_type=object_type,
-				relation=list_relation,
-				subject_type=settings.subject_type,
-				subject_id=subject_id,
-			)
-		except Exception:
-			frappe.log_error(
-				title="Topaz query-filter lookup failed",
-				message=frappe.get_traceback(),
-			)
-			# Fail closed.
-			return "1 = 0"
-		allowed = list({str(x) for x in allowed})
-		cache[cache_key] = allowed
+	transport = get_transport()
+	all_allowed: set[str] = set()
 
-	# Wildcard.
-	if "*" in allowed:
-		return ""
+	for list_relation in list_relations:
+		cache_key = ("__allowed__", object_type, list_relation, settings.subject_type, subject_id)
+		if cache_key in cache:
+			allowed = cache[cache_key]
+		else:
+			try:
+				allowed = transport.search_resources(
+					object_type=object_type,
+					relation=list_relation,
+					subject_type=settings.subject_type,
+					subject_id=subject_id,
+				)
+			except Exception:
+				frappe.log_error(
+					title="Topaz query-filter lookup failed",
+					message=frappe.get_traceback(),
+				)
+				# Fail closed for this relation
+				allowed = []
+			allowed = list({str(x) for x in allowed})
+			cache[cache_key] = allowed
+
+		if "*" in allowed:
+			return ""
+		all_allowed.update(allowed)
 
 	# Empty set.
-	if not allowed:
+	if not all_allowed:
 		return "1 = 0"
 
+	allowed = list(all_allowed)
 	if len(allowed) > HARD_CAP_IDS:
 		frappe.log_error(
 			title="Topaz query-filter: too many ids",

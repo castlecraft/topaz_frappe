@@ -42,7 +42,7 @@ bench install-app topaz_frappe
 
    ```bash
    bench --site my-site set-config topaz_enabled true
-   bench --site my-site set-config topaz_host http://localhost:9292
+   bench --site my-site set-config topaz_host http://localhost:8383
    ```
 
 2. In your **consuming app's** `hooks.py`, declare the DocTypes you want in
@@ -68,6 +68,63 @@ bench install-app topaz_frappe
    ```bash
    bench --site my-site topaz-sync
    ```
+
+### Site Configuration Reference
+
+All settings live in the site's `site_config.json` (set via `bench --site <site> set-config <key> <value>`). The library degrades to a no-op when Topaz is disabled.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `topaz_enabled` | `false` | Master switch for Topaz sync. When off, all sync hooks are no-ops. |
+| `topaz_host` | `http://localhost:8383` | Topaz directory REST base URL. |
+| `topaz_api_key` | – | Optional bearer token sent to Topaz. |
+| `topaz_sync_queue` | `short` | RQ queue for background sync jobs. |
+| `topaz_subject_type` | `user` | Topaz object type used for Frappe users. |
+| `topaz_perm_cache_enabled` | `true` | Per-request memoisation of permission checks. |
+| `topaz_inflight_threshold` | `5000` | Chunk size for `IN (...)` predicates in list filters. |
+| `topaz_desk_permissions` | `false` | **Opt-in.** Enforce Frappe Desk permissions (`has_permission` & list filters) from Topaz. |
+
+### CLI Commands
+
+* `bench --site <site> topaz-health` — Connectivity, latency, and sample authorization probe.
+* `bench --site <site> topaz-sync` — Bulk (re)sync database records into Topaz.
+* `bench --site <site> topaz-load-manifest` — Load and apply schema manifest YAML into Topaz.
+* `bench --site <site> topaz-prune` — Reconcile Topaz directory and prune dangling objects missing from Frappe.
+
+### Opt-in Desk Permissions
+
+By default, `topaz_frappe` authors documents in Frappe and streams them to Topaz, leaving Frappe's native Desk permission system untouched. 
+
+If you want Frappe Desk itself (e.g. DocType List view and document access) to be enforced from Topaz ReBAC decisions:
+
+1. Enable the gate in site config:
+   ```bash
+   bench --site my-site set-config topaz_desk_permissions true
+   ```
+2. In your app's `topaz_registry` hook, map standard Frappe permission actions (`read`, `write`, etc.) to Topaz relations or permissions. You can map a single relation, an array/list of relations, or a pipe-separated string (evaluated with OR logic):
+   ```python
+   topaz_registry = {
+       "Eduauth Department": {
+           "object": {"type": "department", "id_field": "name"},
+           "relations": [ ... ],
+           "permissions": {
+               # Single relation string:
+               "read": "is_member",     # List view & read access only if user is member
+               "write": "lead",          # Edit access only if user is HOD/lead
+           },
+       },
+       "Eduauth Committee": {
+           "object": {"type": "committee", "id_field": "name"},
+           "relations": [ ... ],
+           "permissions": {
+               # Array of relations: access granted if user satisfies ANY of them
+               "read": ["is_member", "can_access"],
+               "write": "chair | admin",  # Pipe syntax also supported
+           },
+       },
+   }
+   ```
+   For list views, `topaz_frappe` queries Topaz for resources across all listed relations and unions the allowed ID set into the SQL query predicate.
 
 ### Contributing
 

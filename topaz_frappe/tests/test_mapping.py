@@ -199,16 +199,30 @@ class TestRegistryBuilder(unittest.TestCase):
 			{
 				"object": {"type": "committee", "id_field": "name"},
 				"relations": [],
-				"permissions": {"read": "can_access_committee", "write": "chair"},
+				"permissions": {
+					"read": ["can_access_committee", "is_member"],
+					"write": "chair | admin",
+					"delete": "chair",
+				},
 			}
 		)
 		self.assertEqual(
 			mapping.permission_relations,
-			{"read": "can_access_committee", "write": "chair"},
+			{
+				"read": ["can_access_committee", "is_member"],
+				"write": ["chair", "admin"],
+				"delete": ["chair"],
+			},
+		)
+		self.assertEqual(
+			mapping.get_permission_relations("read", "viewer"),
+			["can_access_committee", "is_member"],
 		)
 		self.assertEqual(mapping.get_permission_relation("read", "viewer"), "can_access_committee")
+		self.assertEqual(mapping.get_permission_relation("write", "editor"), "chair")
 		# Unmapped ptype falls back to the supplied default.
-		self.assertEqual(mapping.get_permission_relation("delete", "admin"), "admin")
+		self.assertEqual(mapping.get_permission_relation("cancel", "admin"), "admin")
+		self.assertEqual(mapping.get_permission_relations("cancel", "admin"), ["admin"])
 
 
 if __name__ == "__main__":

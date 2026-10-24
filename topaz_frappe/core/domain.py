@@ -353,7 +353,7 @@ class DocTypeMapping:
 
 	object_spec: TopazObjectSpec
 	relations: list = field(default_factory=list)
-	permission_relations: dict[str, str] = field(default_factory=dict)
+	permission_relations: dict[str, list[str]] = field(default_factory=dict)
 	managed: bool = True
 
 	def get_object(self, doc: Document) -> TopazObject | None:
@@ -368,17 +368,29 @@ class DocTypeMapping:
 			relations.extend(spec.get_relations(doc, obj))
 		return relations
 
-	def get_permission_relation(self, ptype: str, default: str | None = None) -> str | None:
-		"""Resolve the Topaz relation for a Frappe ``ptype``.
+	def get_permission_relations(self, ptype: str, default: str | list[str] | None = None) -> list[str]:
+		"""Resolve the Topaz relations that grant a Frappe ``ptype``.
 
 		Lookup order: explicit ``ptype`` override -> ``"*"`` override -> the
-		supplied ``default`` (from the global map) -> ``None``.
+		supplied ``default`` (from the global map) -> empty list.
 		"""
 		if ptype in self.permission_relations:
-			return self.permission_relations[ptype]
+			val = self.permission_relations[ptype]
+			return list(val) if isinstance(val, (list, tuple)) else [val]
 		if "*" in self.permission_relations:
-			return self.permission_relations["*"]
-		return default
+			val = self.permission_relations["*"]
+			return list(val) if isinstance(val, (list, tuple)) else [val]
+		if default is not None:
+			return list(default) if isinstance(default, (list, tuple)) else [default]
+		return []
+
+	def get_permission_relation(self, ptype: str, default: str | None = None) -> str | None:
+		"""Resolve the primary Topaz relation for a Frappe ``ptype`` (backwards-compat).
+
+		Returns the first configured relation for ``ptype``, or ``default``.
+		"""
+		rels = self.get_permission_relations(ptype, default)
+		return rels[0] if rels else None
 
 
 def _row_get(row: Any, fieldname: str) -> Any:
