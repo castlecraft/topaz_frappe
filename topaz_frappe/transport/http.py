@@ -38,10 +38,11 @@ if TYPE_CHECKING:
 __all__ = ["HttpTransport"]
 
 PATH_OBJECT = "/api/v3/directory/object"
+PATH_OBJECTS = "/api/v3/directory/objects"
 PATH_RELATION = "/api/v3/directory/relation"
+PATH_RELATIONS = "/api/v3/directory/relations"
 PATH_CHECK = "/api/v3/directory/check"
-PATH_RELATIONS_READ = "/api/v3/directory/relations/read"
-PATH_SEARCH = "/api/v3/directory/search"
+PATH_MANIFEST = "/api/v3/directory/manifest"
 
 
 class HttpTransport:
@@ -102,6 +103,7 @@ class HttpTransport:
 		method: str,
 		path: str,
 		json: dict[str, Any] | None = None,
+		params: dict[str, Any] | None = None,
 		*,
 		ok_statuses: tuple[int, ...] = (200, 201, 204),
 	) -> Any:
@@ -110,6 +112,7 @@ class HttpTransport:
 				method,
 				self._url(path),
 				json=json,
+				params=params,
 				headers=self._headers(),
 				timeout=self.timeout,
 			)
@@ -136,7 +139,7 @@ class HttpTransport:
 		self._request(
 			"POST",
 			PATH_OBJECT,
-			{"object": {"objectType": obj.type, "objectId": obj.id}},
+			{"object": {"type": obj.type, "id": obj.id}},
 		)
 		return True
 
@@ -144,8 +147,7 @@ class HttpTransport:
 		# Deleting a missing object is treated as success (idempotent).
 		self._request(
 			"DELETE",
-			PATH_OBJECT,
-			{"object": {"objectType": obj.type, "objectId": obj.id}},
+			f"{PATH_OBJECT}/{obj.type}/{obj.id}",
 			ok_statuses=(200, 204, 404),
 		)
 		return True
@@ -159,8 +161,16 @@ class HttpTransport:
 		return True
 
 	def delete_relation(self, rel: "TopazRelation") -> bool:
-		payload = rel.as_api_dict()
-		self._request("DELETE", PATH_RELATION, payload, ok_statuses=(200, 204, 404))
+		params = {
+			"object_type": rel.object_type,
+			"object_id": rel.object_id,
+			"relation": rel.relation,
+			"subject_type": rel.subject_type,
+			"subject_id": rel.subject_id,
+		}
+		if rel.subject_relation:
+			params["subject_relation"] = rel.subject_relation
+		self._request("DELETE", PATH_RELATION, params=params, ok_statuses=(200, 204, 404))
 		return True
 
 	# ------------------------------------------------------------------
@@ -175,18 +185,18 @@ class HttpTransport:
 		subject_id: str,
 		subject_relation: str | None = None,
 	) -> bool:
-		subject: dict[str, Any] = {"object": {"objectType": subject_type, "objectId": subject_id}}
-		if subject_relation:
-			subject["relation"] = subject_relation
-		payload = {
-			"object": {"objectType": object_type, "objectId": object_id},
+		payload: dict[str, Any] = {
+			"object_type": object_type,
+			"object_id": object_id,
 			"relation": relation,
-			"subject": subject,
+			"subject_type": subject_type,
+			"subject_id": subject_id,
 		}
+		if subject_relation:
+			payload["subject_relation"] = subject_relation
 		data = self._request("POST", PATH_CHECK, payload)
 		if not data:
 			return False
-		# Topaz returns {"check": true} / {"isMember": true} depending on build.
 		return bool(data.get("check") or data.get("isMember") or data.get("result"))
 
 	def search_subjects(
@@ -196,18 +206,18 @@ class HttpTransport:
 		relation: str,
 		subject_type: str,
 	) -> list[str]:
-		payload = {
-			"object": {"objectType": object_type, "objectId": object_id},
+		params = {
+			"object_type": object_type,
+			"object_id": object_id,
 			"relation": relation,
-			"subjectObjectType": subject_type,
+			"subject_type": subject_type,
 		}
-		data = self._request("POST", PATH_RELATIONS_READ, payload) or {}
+		data = self._request("GET", PATH_RELATIONS, params=params) or {}
 		out: list[str] = []
-		for item in data.get("results", data.get("relations", [])) or []:
-			subject = item.get("subject") or item.get("relationship", {}).get("subject", {})
-			obj = subject.get("object") or {}
-			if obj.get("objectId"):
-				out.append(obj["objectId"])
+		for item in data.get("results", []):
+			subj_id = item.get("subject_id")
+			if subj_id:
+				out.append(subj_id)
 		return out
 
 	def search_resources(
@@ -218,33 +228,58 @@ class HttpTransport:
 		subject_id: str,
 		subject_relation: str | None = None,
 	) -> list[str]:
-		subject: dict[str, Any] = {"object": {"objectType": subject_type, "objectId": subject_id}}
-		if subject_relation:
-			subject["relation"] = subject_relation
-		payload = {
-			"objectType": object_type,
+		params: dict[str, Any] = {
+			"object_type": object_type,
 			"relation": relation,
-			"subject": subject,
+			"subject_type": subject_type,
+			"subject_id": subject_id,
 		}
-		data = self._request("POST", PATH_SEARCH, payload) or {}
+		if subject_relation:
+			params["subject_relation"] = subject_relation
+		data = self._request("GET", PATH_RELATIONS, params=params) or {}
 		out: list[str] = []
-		for item in data.get("results", data.get("objects", [])) or []:
-			obj = item.get("object") or item
-			object_id = obj.get("objectId") or item.get("objectId")
-			if object_id:
-				out.append(object_id)
+		for item in data.get("results", []):
+			obj_id = item.get("object_id")
+			if obj_id:
+				out.append(obj_id)
 		return out
 
 	def list_objects(self, object_type: str) -> list[str]:
-		payload = {"objectType": object_type}
-		data = self._request("POST", PATH_SEARCH, payload) or {}
+		data = self._request("GET", PATH_OBJECTS, params={"object_type": object_type}) or {}
 		out: list[str] = []
-		for item in data.get("results", data.get("objects", [])) or []:
-			obj = item.get("object") or item
-			object_id = obj.get("objectId") or item.get("objectId")
-			if object_id:
-				out.append(object_id)
+		for item in data.get("results", []):
+			obj_id = item.get("id")
+			if obj_id:
+				out.append(obj_id)
 		return out
+
+	# ------------------------------------------------------------------
+	# Manifest
+	# ------------------------------------------------------------------
+	def get_manifest(self) -> str:
+		response = self._session.get(
+			self._url(PATH_MANIFEST),
+			headers=self._headers(),
+			timeout=self.timeout,
+		)
+		if response.status_code != 200:
+			raise TopazTransportError(f"GET {PATH_MANIFEST} returned {response.status_code}: {response.text}")
+		return response.text
+
+	def set_manifest(self, manifest_yaml: str) -> bool:
+		headers = dict(self._headers())
+		headers["Content-Type"] = "application/yaml"
+		response = self._session.post(
+			self._url(PATH_MANIFEST),
+			data=manifest_yaml,
+			headers=headers,
+			timeout=self.timeout,
+		)
+		if response.status_code not in (200, 204):
+			raise TopazTransportError(
+				f"POST {PATH_MANIFEST} returned {response.status_code}: {response.text}"
+			)
+		return True
 
 	# ------------------------------------------------------------------
 	# Diagnostics

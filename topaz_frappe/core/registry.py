@@ -169,15 +169,26 @@ def _config_to_mapping(config: Any) -> DocTypeMapping:
 	return _build_mapping_from_dict(config)
 
 
+def _unwrap_hook_value(val: Any) -> Any:
+	"""frappe.get_hooks wraps nested dict values into lists; unwrap singletons."""
+	if isinstance(val, (list, tuple)) and len(val) == 1:
+		return val[0]
+	return val
+
+
 def _build_mapping_from_dict(config: dict[str, Any]) -> DocTypeMapping:
 	object_conf = config.get("object") or {}
 	if isinstance(object_conf, TopazObjectSpec):
 		object_spec = object_conf
 	else:
+		raw_type = object_conf.get("type") or object_conf.get("object_type")
+		raw_id_field = object_conf.get("id_field", "name")
+		raw_id_transform = object_conf.get("id_transform")
+
 		object_spec = TopazObjectSpec(
-			object_type=object_conf.get("type") or object_conf.get("object_type"),
-			id_field=object_conf.get("id_field", "name"),
-			id_transform=object_conf.get("id_transform"),
+			object_type=_unwrap_hook_value(raw_type),
+			id_field=_unwrap_hook_value(raw_id_field),
+			id_transform=_unwrap_hook_value(raw_id_transform),
 		)
 	if not object_spec.object_type:
 		raise ValueError("Registry mapping 'object' requires a 'type'.")

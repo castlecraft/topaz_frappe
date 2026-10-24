@@ -51,7 +51,7 @@ class TopazObject:
 
 	def as_api_dict(self) -> dict[str, str]:
 		"""Serialise to the Topaz directory API object shape."""
-		return {"objectType": self.type, "objectId": self.id}
+		return {"type": self.type, "id": self.id}
 
 	def __str__(self) -> str:
 		return f"{self.type}:{self.id}"
@@ -101,16 +101,16 @@ class TopazRelation:
 
 	def as_api_dict(self) -> dict[str, Any]:
 		"""Serialise to the Topaz directory relationship API shape."""
-		subject: dict[str, str] = {"object": {"objectType": self.subject_type, "objectId": self.subject_id}}
-		if self.subject_relation:
-			subject["relation"] = self.subject_relation
-		return {
-			"relationship": {
-				"resource": {"objectType": self.object_type, "objectId": self.object_id},
-				"relation": self.relation,
-				"subject": subject,
-			}
+		d: dict[str, Any] = {
+			"object_type": self.object_type,
+			"object_id": self.object_id,
+			"relation": self.relation,
+			"subject_type": self.subject_type,
+			"subject_id": self.subject_id,
 		}
+		if self.subject_relation:
+			d["subject_relation"] = self.subject_relation
+		return {"relation": d}
 
 	def __str__(self) -> str:
 		subject = f"{self.subject_type}:{self.subject_id}"

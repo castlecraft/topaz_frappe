@@ -106,7 +106,7 @@ class TestDomainObjects(unittest.TestCase):
 
 		obj = TopazObject("document", "README")
 		self.assertEqual(obj.key(), ("document", "README"))
-		self.assertEqual(obj.as_api_dict(), {"objectType": "document", "objectId": "README"})
+		self.assertEqual(obj.as_api_dict(), {"type": "document", "id": "README"})
 		self.assertEqual(str(obj), "document:README")
 
 	def test_relation_api_dict_direct_subject(self):
@@ -114,13 +114,17 @@ class TestDomainObjects(unittest.TestCase):
 
 		rel = TopazRelation("document", "D1", "viewer", "user", "alice")
 		payload = rel.as_api_dict()
-		self.assertEqual(payload["relationship"]["resource"], {"objectType": "document", "objectId": "D1"})
-		self.assertEqual(payload["relationship"]["relation"], "viewer")
 		self.assertEqual(
-			payload["relationship"]["subject"],
-			{"object": {"objectType": "user", "objectId": "alice"}},
+			payload["relation"],
+			{
+				"object_type": "document",
+				"object_id": "D1",
+				"relation": "viewer",
+				"subject_type": "user",
+				"subject_id": "alice",
+			},
 		)
-		self.assertNotIn("relation", payload["relationship"]["subject"])
+		self.assertNotIn("subject_relation", payload["relation"])
 
 	def test_relation_api_dict_subject_set(self):
 		from topaz_frappe.core.domain import TopazRelation
@@ -128,8 +132,15 @@ class TestDomainObjects(unittest.TestCase):
 		rel = TopazRelation("document", "D1", "viewer", "group", "eng", subject_relation="member")
 		payload = rel.as_api_dict()
 		self.assertEqual(
-			payload["relationship"]["subject"],
-			{"object": {"objectType": "group", "objectId": "eng"}, "relation": "member"},
+			payload["relation"],
+			{
+				"object_type": "document",
+				"object_id": "D1",
+				"relation": "viewer",
+				"subject_type": "group",
+				"subject_id": "eng",
+				"subject_relation": "member",
+			},
 		)
 		self.assertEqual(str(rel), "document:D1#viewer@group:eng#member")
 

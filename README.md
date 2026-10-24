@@ -21,9 +21,10 @@ for authorization, not Frappe.
   list filters answered from Topaz enable `topaz_desk_permissions`. Off by
   default; when off, Frappe's native permission system is untouched.
 
-See [`USAGE.md`](./USAGE.md) for the full reference: configuration keys, the
-`topaz_registry` schema, the `managed` flag, the opt-in permission gate,
-and the CLI commands.
+### Sample Reference App
+
+For a complete working reference application modeling an educational institute hierarchy (Institutes, Departments, Committees, Projects, Roles, Groups, and Users) integrated with Topaz, see:
+- [**`castlecraft/eduauth_frappe`**](https://github.com/castlecraft/eduauth_frappe)
 
 ### Installation
 
@@ -45,7 +46,7 @@ bench install-app topaz_frappe
    ```
 
 2. In your **consuming app's** `hooks.py`, declare the DocTypes you want in
-   Topaz (see [`USAGE.md`](./USAGE.md#3-declaring-a-mapping)):
+   Topaz:
 
    ```python
    topaz_registry = {

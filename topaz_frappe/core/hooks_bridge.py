@@ -112,17 +112,17 @@ def _flush_pending_jobs() -> None:
 			queue=queue,
 			doctype=doctype,
 			docname=docname,
-			method=method,
+			sync_method=method,
 			job_id=f"topaz_sync::{doctype}::{docname}::{method}",
 			deduplicate=True,
-			enqueue_after_commit=True,
+			enqueue_after_commit=False,
 			now=False,
 		)
 
 
-def dispatch_sync(doctype: str, docname: str, method: str) -> None:
+def dispatch_sync(doctype: str, docname: str, sync_method: str = "on_update", **kwargs) -> None:
 	"""Background job entry point: perform the actual sync."""
-	_run_now(doctype, docname, method)
+	_run_now(doctype, docname, sync_method)
 
 
 def _run_now(doctype: str, docname: str, method: str) -> None:
