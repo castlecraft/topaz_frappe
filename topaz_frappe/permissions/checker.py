@@ -113,7 +113,7 @@ def custom_has_permission(
 	user = user or frappe.session.user
 
 	# --- bypass rules -------------------------------------------------
-	if user == "Administrator":
+	if user == "Administrator" or "System Manager" in frappe.get_roles(user):
 		return True
 	if frappe.flags.get("ignore_permissions"):
 		return True
@@ -121,6 +121,10 @@ def custom_has_permission(
 	# Only enforce for DocTypes that are registered.
 	mapping = registry.get(doctype)
 	if mapping is None:
+		return None
+
+	# Skip Topaz checks for User DocType so administrative user permissions defer to Frappe
+	if doctype == "User":
 		return None
 
 	relations = resolve_relations(doctype, ptype)

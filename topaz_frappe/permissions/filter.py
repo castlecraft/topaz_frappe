@@ -62,7 +62,7 @@ def get_permission_query_conditions(user: str | None = None, doctype: str | None
 		return ""
 
 	user = user or frappe.session.user
-	if user == "Administrator":
+	if user == "Administrator" or "System Manager" in frappe.get_roles(user):
 		return ""
 	if frappe.flags.get("ignore_permissions"):
 		return ""
@@ -72,6 +72,10 @@ def get_permission_query_conditions(user: str | None = None, doctype: str | None
 
 	mapping = registry.get(doctype)
 	if mapping is None:
+		return ""
+
+	# Skip Topaz filtering for User DocType so administrative user listings defer to Frappe
+	if doctype == "User":
 		return ""
 
 	settings = get_topaz_settings()

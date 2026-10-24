@@ -236,13 +236,33 @@ class HttpTransport:
 		}
 		if subject_relation:
 			params["subject_relation"] = subject_relation
-		data = self._request("GET", PATH_RELATIONS, params=params) or {}
-		out: list[str] = []
-		for item in data.get("results", []):
-			obj_id = item.get("object_id")
-			if obj_id:
-				out.append(obj_id)
-		return out
+
+		try:
+			data = self._request("GET", PATH_RELATIONS, params=params) or {}
+			out: list[str] = []
+			for item in data.get("results", []):
+				obj_id = item.get("object_id")
+				if obj_id:
+					out.append(obj_id)
+			return out
+		except TopazTransportError as exc:
+			# If Topaz reports E20036 (relation type not found), 'relation' might be
+			# a computed permission rather than an explicit relation edge. Fall back
+			# to evaluating check() across all objects of this type.
+			if "E20036" in str(exc):
+				all_ids = self.list_objects(object_type)
+				return [
+					oid
+					for oid in all_ids
+					if self.check(
+						object_type=object_type,
+						object_id=oid,
+						relation=relation,
+						subject_type=subject_type,
+						subject_id=subject_id,
+					)
+				]
+			raise
 
 	def list_objects(self, object_type: str) -> list[str]:
 		data = self._request("GET", PATH_OBJECTS, params={"object_type": object_type}) or {}
