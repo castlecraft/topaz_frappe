@@ -46,7 +46,7 @@ def _load_previous_relations(obj: TopazObject) -> list[TopazRelation]:
 		return []
 	try:
 		data = json.loads(raw)
-	except TypeError, ValueError:
+	except (TypeError, ValueError):
 		return []
 	out: list[TopazRelation] = []
 	for item in data:

@@ -67,8 +67,14 @@ jobs:
       - name: Configure Database & Site
         working-directory: frappe-bench
         run: |
-          mariadb --host 127.0.0.1 -u root -proot -e "SET GLOBAL character_set_server = 'utf8mb4';"
-          mariadb --host 127.0.0.1 -u root -proot -e "SET GLOBAL collation_server = 'utf8mb4_unicode_ci';"
+          cat << 'EOF' > ~/.my.cnf
+          [client]
+          ssl=0
+          ssl-verify-server-cert=0
+          EOF
+
+          mariadb --host 127.0.0.1 -u root -proot --ssl=0 -e "SET GLOBAL character_set_server = 'utf8mb4';"
+          mariadb --host 127.0.0.1 -u root -proot --ssl=0 -e "SET GLOBAL collation_server = 'utf8mb4_unicode_ci';"
           bench setup requirements --dev
           bench new-site --db-root-password root --admin-password admin test_site
           bench --site test_site install-app topaz_frappe
