@@ -17,69 +17,51 @@ jobs:
   tests:
     name: Server Tests
     runs-on: ubuntu-latest
+    container:
+      image: frappe/bench:latest
 
     services:
       redis-cache:
         image: redis:alpine
-        ports:
-          - 13000:6379
       redis-queue:
         image: redis:alpine
-        ports:
-          - 11000:6379
       mariadb:
         image: mariadb:10.6
         env:
-          MYSQL_ROOT_PASSWORD: root
-        ports:
-          - 3306:3306
-        options: --health-cmd="mariadb-admin ping" --health-interval=5s --health-timeout=2s --health-retries=3
+          MYSQL_ROOT_PASSWORD: 123
+          MARIADB_CHARACTER_SET_SERVER: utf8mb4
+          MARIADB_COLLATION_SERVER: utf8mb4_unicode_ci
 
     steps:
       - name: Checkout topaz_frappe
         uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          path: /workspace/frappe-bench/apps/topaz_frappe
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install MariaDB Client
-        run: sudo apt-get install -y mariadb-client
-
-      - name: Setup Frappe Bench
+      - name: Setup Bench Site & Run Tests
+        working-directory: /workspace/frappe-bench
         run: |
-          pip install frappe-bench
-          bench init \
-            --skip-redis-config-generation \
-            --skip-assets \
-            --python "$(which python)" \
-            --version version-16 \
-            ~/frappe-bench
+          # Initialize site config pointing to CI service containers
+          bench set-config -g db_host mariadb
+          bench set-config -g redis_cache redis://redis-cache:6379
+          bench set-config -g redis_queue redis://redis-queue:6379
+          bench set-config -g root_login root
+          bench set-config -g root_password 123
+          bench set-config -g admin_password admin
 
-      - name: Configure Database & Site
-        working-directory: /home/runner/frappe-bench
-        run: |
-          cat << 'EOF' > ~/.my.cnf
-          [client]
-          ssl=0
-          ssl-verify-server-cert=0
-          EOF
+          # Install topaz_frappe dependencies into bench env
+          ./env/bin/pip install -e apps/topaz_frappe
 
-          mariadb --host 127.0.0.1 -u root -proot --ssl=0 -e "SET GLOBAL character_set_server = 'utf8mb4';"
-          mariadb --host 127.0.0.1 -u root -proot --ssl=0 -e "SET GLOBAL collation_server = 'utf8mb4_unicode_ci';"
-          bench get-app topaz_frappe "$GITHUB_WORKSPACE"
-          bench setup requirements --dev
-          bench new-site --db-root-password root --admin-password admin test_site
+          # Create fresh test site
+          bench new-site test_site \
+            --db-type mariadb \
+            --db-host mariadb \
+            --db-root-username root \
+            --db-root-password 123 \
+            --admin-password admin \
+            --no-mariadb-socket
+
+          # Install app and run test suite
           bench --site test_site install-app topaz_frappe
-
-      - name: Run Tests
-        working-directory: /home/runner/frappe-bench
-        run: |
           bench --site test_site set-config allow_tests true
           bench --site test_site run-tests --app topaz_frappe
