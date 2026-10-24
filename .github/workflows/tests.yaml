@@ -38,8 +38,6 @@ jobs:
     steps:
       - name: Checkout topaz_frappe
         uses: actions/checkout@v4
-        with:
-          path: frappe-bench/apps/topaz_frappe
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -62,10 +60,10 @@ jobs:
             --skip-assets \
             --python "$(which python)" \
             --version version-16 \
-            frappe-bench
+            ~/frappe-bench
 
       - name: Configure Database & Site
-        working-directory: frappe-bench
+        working-directory: /home/runner/frappe-bench
         run: |
           cat << 'EOF' > ~/.my.cnf
           [client]
@@ -75,12 +73,13 @@ jobs:
 
           mariadb --host 127.0.0.1 -u root -proot --ssl=0 -e "SET GLOBAL character_set_server = 'utf8mb4';"
           mariadb --host 127.0.0.1 -u root -proot --ssl=0 -e "SET GLOBAL collation_server = 'utf8mb4_unicode_ci';"
+          bench get-app topaz_frappe "$GITHUB_WORKSPACE"
           bench setup requirements --dev
           bench new-site --db-root-password root --admin-password admin test_site
           bench --site test_site install-app topaz_frappe
 
       - name: Run Tests
-        working-directory: frappe-bench
+        working-directory: /home/runner/frappe-bench
         run: |
           bench --site test_site set-config allow_tests true
           bench --site test_site run-tests --app topaz_frappe
