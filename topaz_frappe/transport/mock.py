@@ -228,3 +228,11 @@ class MockTransport:
 			"objects": len(self._objects),
 			"relations": len(self._relations),
 		}
+
+	def set_manifest(self, manifest_yaml: str) -> bool:
+		self._record("set_manifest")
+		return True
+
+	def get_manifest(self) -> str:
+		self._record("get_manifest")
+		return ""
