@@ -79,9 +79,9 @@ def assign_relation(
 	res_def = _get_external_resource_definition(object_type)
 	if not res_def:
 		frappe.throw(
-			_("Unregistered or disabled resource type '{0}'. Please register it in Topaz External Resource.").format(
-				object_type
-			)
+			_(
+				"Unregistered or disabled resource type '{0}'. Please register it in Topaz External Resource."
+			).format(object_type)
 		)
 
 	relations_def = res_def.get("relations") or {}
@@ -97,9 +97,9 @@ def assign_relation(
 	allowed_targets = [t.strip().split("#")[0] for t in str(relations_def[relation]).split("|")]
 	if subject_type not in allowed_targets:
 		frappe.throw(
-			_(
-				"Subject type '{0}' is not allowed for relation '{1}' on '{2}' (allowed: {3})."
-			).format(subject_type, relation, object_type, ", ".join(allowed_targets))
+			_("Subject type '{0}' is not allowed for relation '{1}' on '{2}' (allowed: {3}).").format(
+				subject_type, relation, object_type, ", ".join(allowed_targets)
+			)
 		)
 
 	# 2. Validate existence of subject_id in Frappe core directory
@@ -107,9 +107,7 @@ def assign_relation(
 	if target_doctype:
 		if not frappe.db.exists(target_doctype, subject_id):
 			frappe.throw(
-				_("{0} '{1}' does not exist in the central directory.").format(
-					target_doctype, subject_id
-				)
+				_("{0} '{1}' does not exist in the central directory.").format(target_doctype, subject_id)
 			)
 
 	# 3. Write tuple directly to Topaz REST API

@@ -31,21 +31,23 @@ class TestTopazExternalResource(IntegrationTestCase):
 		super().tearDown()
 
 	def test_manifest_stitching(self):
-		frappe.get_doc({
-			"doctype": "Topaz External Resource",
-			"resource_type": "candidate",
-			"service_name": "recruitment-fastapi",
-			"owner_team": "HR Tech",
-			"manifest_fragment": (
-				"candidate:\n"
-				"  relations:\n"
-				"    interview_committee: committee\n"
-				"    lead: user\n"
-				"  permissions:\n"
-				"    can_interview: interview_committee->is_member | lead\n"
-			),
-			"enabled": 1,
-		}).insert()
+		frappe.get_doc(
+			{
+				"doctype": "Topaz External Resource",
+				"resource_type": "candidate",
+				"service_name": "recruitment-fastapi",
+				"owner_team": "HR Tech",
+				"manifest_fragment": (
+					"candidate:\n"
+					"  relations:\n"
+					"    interview_committee: committee\n"
+					"    lead: user\n"
+					"  permissions:\n"
+					"    can_interview: interview_committee->is_member | lead\n"
+				),
+				"enabled": 1,
+			}
+		).insert()
 
 		stitched = stitch_manifest()
 		self.assertIn("candidate:", stitched)
@@ -54,29 +56,33 @@ class TestTopazExternalResource(IntegrationTestCase):
 
 	def test_assign_and_remove_relation_api(self):
 		# 1. Register candidate resource
-		frappe.get_doc({
-			"doctype": "Topaz External Resource",
-			"resource_type": "candidate",
-			"service_name": "recruitment-fastapi",
-			"owner_team": "HR Tech",
-			"manifest_fragment": (
-				"candidate:\n"
-				"  relations:\n"
-				"    interview_committee: committee\n"
-				"    lead: user\n"
-				"  permissions:\n"
-				"    can_interview: interview_committee->is_member | lead\n"
-			),
-			"enabled": 1,
-		}).insert()
+		frappe.get_doc(
+			{
+				"doctype": "Topaz External Resource",
+				"resource_type": "candidate",
+				"service_name": "recruitment-fastapi",
+				"owner_team": "HR Tech",
+				"manifest_fragment": (
+					"candidate:\n"
+					"  relations:\n"
+					"    interview_committee: committee\n"
+					"    lead: user\n"
+					"  permissions:\n"
+					"    can_interview: interview_committee->is_member | lead\n"
+				),
+				"enabled": 1,
+			}
+		).insert()
 
 		# Ensure a core committee exists in Frappe DB
 		if not frappe.db.exists("Eduauth Committee", "Order_Of_The_Phoenix"):
-			frappe.get_doc({
-				"doctype": "Eduauth Committee",
-				"name": "Order_Of_The_Phoenix",
-				"committee_name": "Order of the Phoenix Advisory",
-			}).insert(ignore_permissions=True)
+			frappe.get_doc(
+				{
+					"doctype": "Eduauth Committee",
+					"name": "Order_Of_The_Phoenix",
+					"committee_name": "Order of the Phoenix Advisory",
+				}
+			).insert(ignore_permissions=True)
 
 		# 2. Call assign_relation successfully
 		res = assign_relation(

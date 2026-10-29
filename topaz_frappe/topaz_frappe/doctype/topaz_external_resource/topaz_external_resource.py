@@ -27,16 +27,12 @@ class TopazExternalResource(Document):
 			frappe.throw(_("Manifest fragment must evaluate to a YAML dictionary mapping."))
 
 		# Verify that the resource_type is represented
-		has_type = (
-			self.resource_type in parsed
-			or "relations" in parsed
-			or "permissions" in parsed
-		)
+		has_type = self.resource_type in parsed or "relations" in parsed or "permissions" in parsed
 		if not has_type:
 			frappe.throw(
-				_(
-					"Manifest fragment must define relations/permissions for resource '{0}'."
-				).format(self.resource_type)
+				_("Manifest fragment must define relations/permissions for resource '{0}'.").format(
+					self.resource_type
+				)
 			)
 
 	def validate_with_topaz(self):
