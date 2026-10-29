@@ -270,4 +270,30 @@ def topaz_load_manifest(context: CliCtxObj, manifest_file=None, app=None):
 			frappe.destroy()
 
 
-commands = [topaz_sync, topaz_health, topaz_prune, topaz_load_manifest]
+@click.command("topaz-stitch-manifest")
+@click.option("--base-file", default=None, help="Path to base manifest YAML file.")
+@click.option("--base-app", default=None, help="Base app containing topaz/manifest.yaml.")
+@pass_context
+def topaz_stitch_manifest(context: CliCtxObj, base_file=None, base_app=None):
+	"""Stitch core manifest with all enabled Topaz External Resources and apply to Topaz."""
+	from topaz_frappe.core.manifest import apply_stitched_manifest
+
+	if not context.sites:
+		raise SiteNotSpecifiedError
+
+	for site in context.sites:
+		try:
+			frappe.init(site)
+			frappe.connect()
+
+			click.echo(f"[{site}] Stitching core manifest with Topaz External Resources...")
+			success = apply_stitched_manifest(base_app=base_app, base_file=base_file)
+			if success:
+				click.echo(f"[{site}] Successfully stitched and applied manifest to Topaz.")
+			else:
+				click.echo(f"[{site}] Topaz is disabled or unavailable.")
+		finally:
+			frappe.destroy()
+
+
+commands = [topaz_sync, topaz_health, topaz_prune, topaz_load_manifest, topaz_stitch_manifest]
