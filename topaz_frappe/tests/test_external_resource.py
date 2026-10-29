@@ -63,34 +63,22 @@ class TestTopazExternalResource(IntegrationTestCase):
 				"service_name": "recruitment-fastapi",
 				"owner_team": "HR Tech",
 				"manifest_fragment": (
-					"candidate:\n"
-					"  relations:\n"
-					"    interview_committee: committee\n"
-					"    lead: user\n"
-					"  permissions:\n"
-					"    can_interview: interview_committee->is_member | lead\n"
+					"candidate:\n  relations:\n    lead: user\n  permissions:\n    can_interview: lead\n"
 				),
 				"enabled": 1,
 			}
 		).insert()
 
-		# Ensure a core committee exists in Frappe DB
-		if not frappe.db.exists("Eduauth Committee", "Order_Of_The_Phoenix"):
-			frappe.get_doc(
-				{
-					"doctype": "Eduauth Committee",
-					"name": "Order_Of_The_Phoenix",
-					"committee_name": "Order of the Phoenix Advisory",
-				}
-			).insert(ignore_permissions=True)
+		# Ensure Administrator exists (User is a built-in Frappe DocType)
+		self.assertTrue(frappe.db.exists("User", "Administrator"))
 
 		# 2. Call assign_relation successfully
 		res = assign_relation(
 			object_type="candidate",
 			object_id="CAND-001",
-			relation="interview_committee",
-			subject_type="committee",
-			subject_id="Order_Of_The_Phoenix",
+			relation="lead",
+			subject_type="user",
+			subject_id="Administrator",
 		)
 		self.assertTrue(res.get("success"))
 
@@ -98,9 +86,9 @@ class TestTopazExternalResource(IntegrationTestCase):
 		found = self.transport.check(
 			object_type="candidate",
 			object_id="CAND-001",
-			relation="interview_committee",
-			subject_type="committee",
-			subject_id="Order_Of_The_Phoenix",
+			relation="lead",
+			subject_type="user",
+			subject_id="Administrator",
 		)
 		self.assertTrue(found)
 
@@ -108,9 +96,9 @@ class TestTopazExternalResource(IntegrationTestCase):
 		del_res = remove_relation(
 			object_type="candidate",
 			object_id="CAND-001",
-			relation="interview_committee",
-			subject_type="committee",
-			subject_id="Order_Of_The_Phoenix",
+			relation="lead",
+			subject_type="user",
+			subject_id="Administrator",
 		)
 		self.assertTrue(del_res.get("success"))
 
@@ -118,9 +106,9 @@ class TestTopazExternalResource(IntegrationTestCase):
 		found_after = self.transport.check(
 			object_type="candidate",
 			object_id="CAND-001",
-			relation="interview_committee",
-			subject_type="committee",
-			subject_id="Order_Of_The_Phoenix",
+			relation="lead",
+			subject_type="user",
+			subject_id="Administrator",
 		)
 		self.assertFalse(found_after)
 
